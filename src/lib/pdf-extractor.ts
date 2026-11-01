@@ -12,12 +12,6 @@ export const PRODUCT_COLUMNS = [
   "Bawang Putih Kupas",
 ];
 
-interface TextItem {
-  str: string;
-  transform: number[];
-  width: number;
-}
-
 /**
  * Extracts and converts PO rows into a clean, non-duplicate list of SuratJalanData.
  * Filters out outlets with 0 total quantity.

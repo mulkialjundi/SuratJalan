@@ -6,16 +6,21 @@ Aplikasi web khusus untuk memproses file **Purchase Order (PO)** harian dan seca
 
 ## 🎯 Spesifikasi Output
 
-1. **1 Kali Upload = 1 File PDF Lengkap**:
+Ada **2 mode input** yang bisa dipilih di halaman pertama:
+
+| Mode | Input | Output PDF |
+| --- | --- | --- |
+| **Scan PDF PO** | Upload file PDF Purchase Order | 1 halaman A4 berisi **2 outlet** (atas & bawah, ada garis potong) |
+| **Scan Teks PO** | Tempel teks PO (WhatsApp/Excel/catatan) | 1 halaman A4 berisi **1 outlet penuh** |
+
+1. **1 Kali Proses = 1 File PDF Lengkap**:
    - Seluruh cabang/outlet pesanan langsung digabungkan ke dalam **satu file PDF** siap cetak atau simpan.
-2. **1 Halaman A4 = 2 Alamat Berbeda**:
-   - **Bagian Atas**: Surat Jalan untuk Cabang 1 (misal: *Uena Aren Jaya*)
-   - **Garis Tengah**: Titik-titik `- - potong di sini - -`
-   - **Bagian Bawah**: Surat Jalan untuk Cabang 2 (misal: *Uena Bojong Nangka*)
-   - Halaman ke-2: Cabang 3 & Cabang 4, dst.
+2. **Format Halaman**:
+   - **Mode PDF**: 2 alamat berbeda per halaman A4 + garis `- - potong di sini - -`.
+   - **Mode Teks**: 1 outlet per halaman A4 dengan format surat jalan yang sama, hanya lebih lega.
 3. **Format Nama File Otomatis**:
-   - File PDF yang diunduh otomatis diberi nama dengan format: `SJ-(Tanggal Bulan Tahun).pdf`.
-   - Contoh: pengiriman tanggal 1 November 2026 $\rightarrow$ **`SJ-011126.pdf`**.
+   - Mode PDF: `SJ-011126.pdf`
+   - Mode Teks: `SJ-011126-1Outlet.pdf`
 4. **Cabang & Item Tanpa Pesanan Otomatis Dilewati**:
    - Cabang yang pesanannya `0 kg` tidak dicetak ke PDF agar hemat kertas.
    - Item produk dengan QTY 0 tidak dimasukkan ke dalam tabel surat jalan.
@@ -89,10 +94,11 @@ File alur otomatis GitHub Actions sudah disiapkan di `.github/workflows/deploy.y
 
 ## 📖 Alur Penggunaan
 
-1. **Upload PO PDF**:
-   - Masukkan file PO. Sistem membaca semua cabang dan barangnya (Ceciwis, Timun, Jukut, Kangkung, Bawang, dll.).
+1. **Pilih Mode Input**:
+   - **Scan PDF PO**: unggah file PDF Purchase Order.
+   - **Scan Teks PO**: tempel teks PO. Format yang didukung: PO pengiriman (`Tgl 2/11` + daftar `- NAMA BARANG : 1.5 kg` + `kirim ke CK DEPOK`), tabel tab/pipe (`|`), baris ringkas `tanggal outlet angka...`, atau blok `Outlet:` + nama barang & QTY. Nama barang bebas.
 2. **Koreksi & Rincian**:
    - Periksa pesanan per cabang, ubah kuantitas jika ada koreksi, serta tetapkan Plat Nomor atau Kendaraan pengantar (bisa menggunakan tombol *"Semua"* untuk menerapkan ke seluruh cabang sekaligus).
 3. **Preview & Unduh**:
    - Lihat tampilan seluruh halaman PDF secara langsung.
-   - Klik tombol **"Unduh PDF (SJ-011126.pdf)"** untuk mendapatkan 1 file PDF yang memuat semua cabang siap cetak.
+   - Klik tombol **"Unduh PDF"** untuk mendapatkan 1 file PDF yang memuat semua cabang siap cetak.

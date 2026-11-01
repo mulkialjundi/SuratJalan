@@ -15,11 +15,3 @@ export interface SuratJalanData {
   items: SuratJalanItem[];
   totalQty?: number;
 }
-
-export interface OutletOrder {
-  id: string;
-  location: string;
-  date: string;
-  items: { namaBarang: string; qty: number }[];
-  totalKg: number;
-}

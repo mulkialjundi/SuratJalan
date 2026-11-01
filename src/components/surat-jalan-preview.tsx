@@ -22,34 +22,46 @@ import {
 import type { SuratJalanData } from "@/lib/types";
 import {
   downloadCombinedPDF,
+  downloadSingleOutletPDF,
   getCombinedPDFPreviewURL,
+  getSingleOutletPDFPreviewURL,
   getSJFilename,
+  getSingleOutletFilename,
 } from "@/lib/pdf-generator";
 import { toast } from "@/components/ui/use-toast";
 
 interface SuratJalanPreviewProps {
   suratJalanList: SuratJalanData[];
+  layout?: "duo" | "single";
   onReset: () => void;
   onBack: () => void;
 }
 
 export function SuratJalanPreview({
   suratJalanList,
+  layout = "duo",
   onReset,
   onBack,
 }: SuratJalanPreviewProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(true);
 
-  const totalPages = Math.ceil(suratJalanList.length / 2);
-  const fileName = getSJFilename(suratJalanList);
+  const isSingle = layout === "single";
+  const totalPages = isSingle
+    ? suratJalanList.length
+    : Math.ceil(suratJalanList.length / 2);
+  const fileName = isSingle
+    ? getSingleOutletFilename(suratJalanList)
+    : getSJFilename(suratJalanList);
 
   useEffect(() => {
     if (!suratJalanList || suratJalanList.length === 0) return;
     setIsGenerating(true);
     const timer = setTimeout(() => {
       try {
-        const url = getCombinedPDFPreviewURL(suratJalanList);
+        const url = isSingle
+          ? getSingleOutletPDFPreviewURL(suratJalanList)
+          : getCombinedPDFPreviewURL(suratJalanList);
         setPreviewUrl(url);
       } catch (err) {
         console.error("Preview generation error:", err);
@@ -64,14 +76,16 @@ export function SuratJalanPreview({
     }, 150);
 
     return () => clearTimeout(timer);
-  }, [suratJalanList]);
+  }, [suratJalanList, isSingle]);
 
   const handleDownloadAll = () => {
     try {
-      const savedName = downloadCombinedPDF(suratJalanList);
+      const savedName = isSingle
+        ? downloadSingleOutletPDF(suratJalanList)
+        : downloadCombinedPDF(suratJalanList);
       toast({
         title: "PDF Berhasil Diunduh!",
-        description: `File "${savedName}" berisi seluruh ${suratJalanList.length} cabang (${totalPages} halaman A4) telah disimpan.`,
+        description: `File "${savedName}" berisi seluruh ${suratJalanList.length} outlet (${totalPages} halaman A4) telah disimpan.`,
       });
     } catch (e) {
       console.error(e);
@@ -95,7 +109,7 @@ export function SuratJalanPreview({
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      {/* Banner Utama: 1 PDF Berisi Seluruh Data Tanpa Duplikat */}
+      {/* Banner Utama */}
       <Card className="bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-800 text-white border-none shadow-xl">
         <CardContent className="pt-6 pb-6">
           <div className="flex flex-col lg:flex-row items-center justify-between gap-5">
@@ -106,15 +120,30 @@ export function SuratJalanPreview({
               <div className="space-y-1">
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/40 text-emerald-100 text-xs font-semibold mb-1">
                   <Sparkles className="h-3 w-3" />
-                  1 File PDF Siap Cetak • Tanpa Duplikat
+                  {isSingle
+                    ? "1 Outlet = 1 Halaman A4"
+                    : "1 File PDF Siap Cetak • Tanpa Duplikat"}
                 </div>
                 <h3 className="font-extrabold text-xl sm:text-2xl text-white tracking-tight">
                   1 File PDF Berisi Seluruh {suratJalanList.length} Cabang
                 </h3>
                 <p className="text-xs sm:text-sm text-emerald-100/90 leading-relaxed max-w-xl">
-                  Setiap lembar A4 memuat <strong>2 alamat outlet berbeda</strong> (atas &
-                  bawah) dengan garis potong. Total <strong>{totalPages} halaman</strong>, hemat
-                  50% kertas & tidak ada duplikasi data.
+                  {isSingle ? (
+                    <>
+                      Setiap lembar A4 memuat <strong>1 outlet penuh</strong>{" "}
+                      dengan format surat jalan yang sama. Total{" "}
+                      <strong>{totalPages} halaman</strong>, lebih lega dan
+                      mudah dibaca.
+                    </>
+                  ) : (
+                    <>
+                      Setiap lembar A4 memuat{" "}
+                      <strong>2 alamat outlet berbeda</strong> (atas & bawah)
+                      dengan garis potong. Total{" "}
+                      <strong>{totalPages} halaman</strong>, hemat 50% kertas &
+                      tidak ada duplikasi data.
+                    </>
+                  )}
                 </p>
               </div>
             </div>
@@ -148,7 +177,8 @@ export function SuratJalanPreview({
           <div className="flex items-center gap-2">
             <FileText className="h-4 w-4 text-emerald-600" />
             <CardTitle className="text-sm font-bold text-slate-800">
-              Rangkuman Pengiriman ({suratJalanList.length} Outlet / {totalPages} Halaman A4)
+              Rangkuman Pengiriman ({suratJalanList.length} Outlet /{" "}
+              {totalPages} Halaman A4)
             </CardTitle>
           </div>
           <div className="flex items-center gap-2">
@@ -175,7 +205,7 @@ export function SuratJalanPreview({
         <CardContent className="p-3">
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 text-xs">
             {suratJalanList.map((sj, idx) => {
-              const pageNum = Math.floor(idx / 2) + 1;
+              const pageNum = isSingle ? idx + 1 : Math.floor(idx / 2) + 1;
               const isTop = idx % 2 === 0;
               return (
                 <div
@@ -186,8 +216,13 @@ export function SuratJalanPreview({
                     #{idx + 1} {sj.kepada.replace("Uena ", "")}
                   </div>
                   <div className="flex items-center justify-between text-[10px] text-slate-500 mt-1">
-                    <span>Hlm {pageNum} ({isTop ? "Atas" : "Bawah"})</span>
-                    <span className="font-bold text-emerald-700">{sj.items.length} item</span>
+                    <span>
+                      Hlm {pageNum}
+                      {!isSingle && ` (${isTop ? "Atas" : "Bawah"})`}
+                    </span>
+                    <span className="font-bold text-emerald-700">
+                      {sj.items.length} item
+                    </span>
                   </div>
                 </div>
               );
@@ -204,7 +239,8 @@ export function SuratJalanPreview({
               Preview Dokumen PDF (Seluruh Halaman)
             </CardTitle>
             <CardDescription className="text-xs">
-              Scroll ke bawah di dalam kotak untuk melihat semua {totalPages} halaman A4
+              Scroll ke bawah di dalam kotak untuk melihat semua {totalPages}{" "}
+              halaman A4
             </CardDescription>
           </div>
           <Button
@@ -221,7 +257,8 @@ export function SuratJalanPreview({
             <div className="flex flex-col items-center justify-center h-[750px] gap-3 text-slate-500">
               <Loader2 className="h-9 w-9 animate-spin text-emerald-600" />
               <p className="text-sm font-medium">
-                Menggabungkan seluruh {suratJalanList.length} cabang ke dalam 1 file PDF...
+                Menyusun seluruh {suratJalanList.length} cabang ke dalam 1 file
+                PDF...
               </p>
             </div>
           ) : previewUrl ? (

@@ -6,6 +6,17 @@ const PAGE_WIDTH = 595.28;
 const PAGE_HEIGHT = 841.89;
 const HALF_HEIGHT = PAGE_HEIGHT / 2; // 420.945 pt
 
+interface SlipLayoutOptions {
+  /** Height of the drawing region (defaults to half A4). */
+  regionHeight?: number;
+  /** Multiplier for font sizes. */
+  fontScale?: number;
+  /** Multiplier for vertical spacing. */
+  verticalScale?: number;
+  /** Pin the signature block near the bottom of the region. */
+  anchorSignatureBottom?: boolean;
+}
+
 /**
  * Filters and sanitizes the outlet data:
  * - Removes any items with qty <= 0 or empty name
@@ -100,23 +111,71 @@ export function generateCombinedPDF(dataList: SuratJalanData[]): jsPDF {
 }
 
 /**
+ * Generates a PDF where EVERY outlet occupies one full A4 page.
+ * The visual layout is identical to the 2-per-page version, just enlarged
+ * and spread across the whole page.
+ */
+export function generateSingleOutletPDF(dataList: SuratJalanData[]): jsPDF {
+  const validOutlets = getValidOutlets(dataList);
+
+  const doc = new jsPDF({
+    orientation: "portrait",
+    unit: "pt",
+    format: "a4",
+  });
+
+  if (validOutlets.length === 0) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(12);
+    doc.text(
+      "Tidak ada data cabang dengan item pesanan (QTY > 0).",
+      40,
+      100
+    );
+    return doc;
+  }
+
+  validOutlets.forEach((outlet, index) => {
+    if (index > 0) doc.addPage("a4", "portrait");
+
+    renderSingleSuratJalan(doc, outlet, 0, {
+      regionHeight: PAGE_HEIGHT,
+      fontScale: 1.18,
+      verticalScale: 1.55,
+      anchorSignatureBottom: true,
+    });
+  });
+
+  return doc;
+}
+
+/**
  * Renders a single Surat Jalan slip in half of an A4 page (height: ~420 pt)
+ * unless custom layout options are provided.
  */
 function renderSingleSuratJalan(
   doc: jsPDF,
   data: SuratJalanData,
-  offsetY: number
+  offsetY: number,
+  options: SlipLayoutOptions = {}
 ) {
+  const fs = options.fontScale ?? 1;
+  const vs = options.verticalScale ?? 1;
+  const regionHeight = options.regionHeight ?? HALF_HEIGHT;
   const leftMargin = 32;
   const rightMargin = PAGE_WIDTH - 32;
+  const logoScale = Math.min(fs, 1.25);
+  const logoW = 46 * logoScale;
+  const logoH = 38 * logoScale;
+  const textX = leftMargin + logoW + 8;
 
   // 1. Header: Logo & Company Info
-  const headerTop = offsetY + 28;
+  const headerTop = offsetY + 28 * vs;
 
   // Logo
   try {
     if (LOGO_BASE64) {
-      doc.addImage(LOGO_BASE64, "PNG", leftMargin, headerTop, 46, 38);
+      doc.addImage(LOGO_BASE64, "PNG", leftMargin, headerTop, logoW, logoH);
     }
   } catch (e) {
     console.error("Logo render error:", e);
@@ -124,120 +183,120 @@ function renderSingleSuratJalan(
 
   // Company Name
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
+  doc.setFontSize(14 * fs);
   doc.setTextColor(17, 24, 39);
-  doc.text("Alam Cabe Barokah", 86, headerTop + 13);
+  doc.text("Alam Cabe Barokah", textX, headerTop + 13 * vs);
 
   // Subtitle
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(6.5);
+  doc.setFontSize(6.5 * fs);
   doc.setTextColor(5, 150, 105); // emerald green
-  doc.text("DISTRIBUTOR SAYUR & BUMBU SEGAR", 86, headerTop + 22);
+  doc.text("DISTRIBUTOR SAYUR & BUMBU SEGAR", textX, headerTop + 22 * vs);
 
   // Address
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(6.5);
+  doc.setFontSize(6.5 * fs);
   doc.setTextColor(100, 116, 139);
-  doc.text("Jl. Masjid Gedong 1 No. 29A RT 06/RW 01", 86, headerTop + 30);
-  doc.text("Kel. Kramat Jati, Kec. Kramat Jati 13510", 86, headerTop + 38);
+  doc.text("Jl. Masjid Gedong 1 No. 29A RT 06/RW 01", textX, headerTop + 30 * vs);
+  doc.text("Kel. Kramat Jati, Kec. Kramat Jati 13510", textX, headerTop + 38 * vs);
 
   // Title: SURAT JALAN
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
+  doc.setFontSize(18 * fs);
   doc.setTextColor(15, 23, 42);
-  doc.text("SURAT JALAN", rightMargin, headerTop + 14, { align: "right" });
+  doc.text("SURAT JALAN", rightMargin, headerTop + 14 * vs, { align: "right" });
 
   // Date | ID Barang
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
+  doc.setFontSize(8 * fs);
   doc.setTextColor(51, 65, 85);
   const metaText = `${data.tanggal}   |   ID Barang: ${data.idBarang}`;
-  doc.text(metaText, rightMargin, headerTop + 27, { align: "right" });
+  doc.text(metaText, rightMargin, headerTop + 27 * vs, { align: "right" });
 
   // 2. Info Bar (KEPADA, ALAMAT, KENDARAAN, NO. POLISI)
-  const infoTop = headerTop + 52;
+  const infoTop = headerTop + 52 * vs;
   doc.setDrawColor(226, 232, 240);
   doc.setLineWidth(0.7);
-  doc.line(leftMargin, infoTop - 5, rightMargin, infoTop - 5);
+  doc.line(leftMargin, infoTop - 5 * vs, rightMargin, infoTop - 5 * vs);
 
   // Left column: KEPADA & ALAMAT
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(7);
+  doc.setFontSize(7 * fs);
   doc.setTextColor(100, 116, 139);
-  doc.text("KEPADA", leftMargin, infoTop + 6);
-  doc.text("ALAMAT", leftMargin, infoTop + 19);
+  doc.text("KEPADA", leftMargin, infoTop + 6 * vs);
+  doc.text("ALAMAT", leftMargin, infoTop + 19 * vs);
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9.5);
+  doc.setFontSize(9.5 * fs);
   doc.setTextColor(15, 23, 42);
-  doc.text(data.kepada || "-", leftMargin + 50, infoTop + 6);
+  doc.text(data.kepada || "-", leftMargin + 50, infoTop + 6 * vs);
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.5);
+  doc.setFontSize(8.5 * fs);
   doc.setTextColor(71, 85, 105);
-  doc.text(data.alamat || "-", leftMargin + 50, infoTop + 19);
+  doc.text(data.alamat || "-", leftMargin + 50, infoTop + 19 * vs);
 
   // Right column: KENDARAAN & NO. POLISI
   const rightColX = 350;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(7);
+  doc.setFontSize(7 * fs);
   doc.setTextColor(100, 116, 139);
-  doc.text("KENDARAAN", rightColX, infoTop + 6);
-  doc.text("NO. POLISI", rightColX, infoTop + 19);
+  doc.text("KENDARAAN", rightColX, infoTop + 6 * vs);
+  doc.text("NO. POLISI", rightColX, infoTop + 19 * vs);
 
   // Dotted lines for vehicle & plate
   doc.setDrawColor(203, 213, 225);
   doc.setLineDashPattern([1.5, 2], 0);
-  doc.line(rightColX + 58, infoTop + 6, rightMargin, infoTop + 6);
-  doc.line(rightColX + 58, infoTop + 19, rightMargin, infoTop + 19);
+  doc.line(rightColX + 58, infoTop + 6 * vs, rightMargin, infoTop + 6 * vs);
+  doc.line(rightColX + 58, infoTop + 19 * vs, rightMargin, infoTop + 19 * vs);
   doc.setLineDashPattern([], 0);
 
   if (data.kendaraan) {
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
+    doc.setFontSize(8 * fs);
     doc.setTextColor(15, 23, 42);
-    doc.text(data.kendaraan, rightColX + 60, infoTop + 5);
+    doc.text(data.kendaraan, rightColX + 60, infoTop + 5 * vs);
   }
   if (data.noPolisi) {
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
+    doc.setFontSize(8 * fs);
     doc.setTextColor(15, 23, 42);
-    doc.text(data.noPolisi, rightColX + 60, infoTop + 18);
+    doc.text(data.noPolisi, rightColX + 60, infoTop + 18 * vs);
   }
 
   // 3. Table Header
-  const tableTop = infoTop + 32;
+  const tableTop = infoTop + 32 * vs;
   doc.setDrawColor(203, 213, 225);
   doc.setLineWidth(0.8);
   doc.line(leftMargin, tableTop, rightMargin, tableTop);
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(8);
+  doc.setFontSize(8 * fs);
   doc.setTextColor(30, 41, 59);
-  doc.text("NO", leftMargin + 10, tableTop + 11);
-  doc.text("NAMA BARANG", leftMargin + 42, tableTop + 11);
-  doc.text("QTY", rightMargin - 15, tableTop + 11, { align: "right" });
+  doc.text("NO", leftMargin + 10, tableTop + 11 * vs);
+  doc.text("NAMA BARANG", leftMargin + 42, tableTop + 11 * vs);
+  doc.text("QTY", rightMargin - 15, tableTop + 11 * vs, { align: "right" });
 
-  doc.line(leftMargin, tableTop + 16, rightMargin, tableTop + 16);
+  doc.line(leftMargin, tableTop + 16 * vs, rightMargin, tableTop + 16 * vs);
 
   // 4. Table Rows (Only items with QTY > 0)
-  let currentY = tableTop + 28;
-  const rowHeight = 16;
+  let currentY = tableTop + 28 * vs;
+  const rowHeight = 16 * vs;
 
   data.items.forEach((item, idx) => {
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
+    doc.setFontSize(8 * fs);
     doc.setTextColor(71, 85, 105);
     const noStr = String(item.no || idx + 1).padStart(2, "0");
     doc.text(noStr, leftMargin + 10, currentY);
 
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8.5);
+    doc.setFontSize(8.5 * fs);
     doc.setTextColor(15, 23, 42);
     doc.text(item.namaBarang, leftMargin + 42, currentY);
 
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
+    doc.setFontSize(9 * fs);
     const qtyStr = formatQty(item.qty);
     doc.text(qtyStr, rightMargin - 15, currentY, { align: "right" });
 
@@ -253,30 +312,32 @@ function renderSingleSuratJalan(
     data.totalQty ?? data.items.reduce((sum, item) => sum + item.qty, 0);
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(8.5);
+  doc.setFontSize(8.5 * fs);
   doc.setTextColor(15, 23, 42);
-  doc.text("TOTAL", rightMargin - 75, currentY + 7);
-  doc.text(formatQty(totalQty), rightMargin - 15, currentY + 7, {
+  doc.text("TOTAL", rightMargin - 75, currentY + 7 * vs);
+  doc.text(formatQty(totalQty), rightMargin - 15, currentY + 7 * vs, {
     align: "right",
   });
 
-  doc.line(leftMargin, currentY + 12, rightMargin, currentY + 12);
+  doc.line(leftMargin, currentY + 12 * vs, rightMargin, currentY + 12 * vs);
 
   // 5. Signatures Section
-  const sigTop = currentY + 26;
+  const sigTop = options.anchorSignatureBottom
+    ? offsetY + regionHeight - 28 - 62 * vs
+    : currentY + 26 * vs;
   const col1X = leftMargin + 50;
   const col2X = PAGE_WIDTH / 2;
   const col3X = rightMargin - 50;
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(8);
+  doc.setFontSize(8 * fs);
   doc.setTextColor(71, 85, 105);
   doc.text("Pengirim", col1X, sigTop, { align: "center" });
   doc.text("Driver", col2X, sigTop, { align: "center" });
   doc.text("Penerima", col3X, sigTop, { align: "center" });
 
   // Signature dotted lines
-  const sigLineY = sigTop + 40;
+  const sigLineY = sigTop + 40 * vs;
   doc.setDrawColor(203, 213, 225);
   doc.setLineDashPattern([1.5, 2], 0);
   doc.line(col1X - 45, sigLineY, col1X + 45, sigLineY);
@@ -286,22 +347,22 @@ function renderSingleSuratJalan(
 
   // Names under signature
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(7.5);
+  doc.setFontSize(7.5 * fs);
   doc.setTextColor(51, 65, 85);
-  doc.text("Alam Cabe Barokah", col1X, sigLineY + 9, { align: "center" });
-  doc.text("Nama jelas", col2X, sigLineY + 9, { align: "center" });
+  doc.text("Alam Cabe Barokah", col1X, sigLineY + 9 * vs, { align: "center" });
+  doc.text("Nama jelas", col2X, sigLineY + 9 * vs, { align: "center" });
 
   const receiverShort = data.kepada.startsWith("Uena") ? "Uena" : data.kepada;
-  doc.text(receiverShort, col3X, sigLineY + 9, { align: "center" });
+  doc.text(receiverShort, col3X, sigLineY + 9 * vs, { align: "center" });
 
   // Footer Note
   doc.setFont("helvetica", "italic");
-  doc.setFontSize(6.5);
+  doc.setFontSize(6.5 * fs);
   doc.setTextColor(148, 163, 184);
   doc.text(
     "Barang diterima dalam kondisi baik dan jumlah sesuai surat jalan",
     PAGE_WIDTH / 2,
-    sigLineY + 22,
+    sigLineY + 22 * vs,
     { align: "center" }
   );
 }
@@ -404,4 +465,38 @@ export function getCombinedPDFPreviewURL(dataList: SuratJalanData[]): string {
   const validList = getValidOutlets(dataList);
   const doc = generateCombinedPDF(validList);
   return doc.output("dataurlstring");
+}
+
+/**
+ * Downloads a PDF where each outlet is printed on its own full A4 page.
+ * Filename: SJ-DDMMYY-1Outlet.pdf
+ */
+export function downloadSingleOutletPDF(
+  dataList: SuratJalanData[],
+  filename?: string
+): string {
+  const validList = getValidOutlets(dataList);
+  const doc = generateSingleOutletPDF(validList);
+  const name = filename || getSingleOutletFilename(validList);
+  doc.save(name);
+  return name;
+}
+
+/**
+ * Generates a data URL preview for the 1-outlet-per-A4 layout.
+ */
+export function getSingleOutletPDFPreviewURL(
+  dataList: SuratJalanData[]
+): string {
+  const validList = getValidOutlets(dataList);
+  const doc = generateSingleOutletPDF(validList);
+  return doc.output("dataurlstring");
+}
+
+/**
+ * Generates filename in format: SJ-DDMMYY-1Outlet.pdf
+ */
+export function getSingleOutletFilename(dataList: SuratJalanData[]): string {
+  const base = getSJFilename(dataList);
+  return base.replace(/\.pdf$/i, "-1Outlet.pdf");
 }

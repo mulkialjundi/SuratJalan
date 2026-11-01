@@ -7,7 +7,7 @@ interface StepIndicatorProps {
 }
 
 const steps = [
-  { number: 1, title: "Upload PDF", description: "Unggah file PDF pesanan" },
+  { number: 1, title: "Input PO", description: "Unggah PDF atau tempel teks PO" },
   { number: 2, title: "Periksa Data", description: "Koreksi data hasil ekstraksi" },
   { number: 3, title: "Surat Jalan", description: "Preview & unduh PDF" },
 ];
