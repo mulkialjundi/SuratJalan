@@ -459,12 +459,22 @@ export function downloadCombinedPDF(
 }
 
 /**
- * Generates a data URL for multi-page live preview
+ * Produces a blob object URL for the given document.
+ * Blob URLs (unlike data URLs) are allowed to be opened in a new tab
+ * and can be printed from an iframe.
+ */
+function toBlobURL(doc: jsPDF): string {
+  const blob = doc.output("blob");
+  return URL.createObjectURL(blob);
+}
+
+/**
+ * Generates a blob URL for multi-page live preview
  */
 export function getCombinedPDFPreviewURL(dataList: SuratJalanData[]): string {
   const validList = getValidOutlets(dataList);
   const doc = generateCombinedPDF(validList);
-  return doc.output("dataurlstring");
+  return toBlobURL(doc);
 }
 
 /**
@@ -483,14 +493,14 @@ export function downloadSingleOutletPDF(
 }
 
 /**
- * Generates a data URL preview for the 1-outlet-per-A4 layout.
+ * Generates a blob URL preview for the 1-outlet-per-A4 layout.
  */
 export function getSingleOutletPDFPreviewURL(
   dataList: SuratJalanData[]
 ): string {
   const validList = getValidOutlets(dataList);
   const doc = generateSingleOutletPDF(validList);
-  return doc.output("dataurlstring");
+  return toBlobURL(doc);
 }
 
 /**

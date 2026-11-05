@@ -57,11 +57,13 @@ export function SuratJalanPreview({
   useEffect(() => {
     if (!suratJalanList || suratJalanList.length === 0) return;
     setIsGenerating(true);
+    let createdUrl: string | null = null;
     const timer = setTimeout(() => {
       try {
         const url = isSingle
           ? getSingleOutletPDFPreviewURL(suratJalanList)
           : getCombinedPDFPreviewURL(suratJalanList);
+        createdUrl = url;
         setPreviewUrl(url);
       } catch (err) {
         console.error("Preview generation error:", err);
@@ -75,7 +77,11 @@ export function SuratJalanPreview({
       }
     }, 150);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      // Lepaskan blob URL lama agar tidak bocor memori
+      if (createdUrl) URL.revokeObjectURL(createdUrl);
+    };
   }, [suratJalanList, isSingle]);
 
   const handleDownloadAll = () => {
@@ -97,14 +103,79 @@ export function SuratJalanPreview({
   };
 
   const handlePrint = () => {
-    if (previewUrl) {
-      const printWindow = window.open(previewUrl, "_blank");
-      if (printWindow) {
-        printWindow.addEventListener("load", () => {
-          printWindow.print();
-        });
-      }
+    if (!previewUrl) {
+      toast({
+        title: "Preview belum siap",
+        description: "Tunggu sebentar hingga PDF selesai disusun, lalu coba lagi.",
+        variant: "destructive",
+      });
+      return;
     }
+
+    // Fallback: buka PDF di tab baru agar user bisa cetak via Ctrl+P
+    const openInNewTab = (): boolean => {
+      const win = window.open(previewUrl, "_blank");
+      if (win) {
+        toast({
+          title: "PDF dibuka di tab baru",
+          description: "Gunakan menu print browser (Ctrl+P) untuk mencetak.",
+        });
+        return true;
+      }
+      return false;
+    };
+
+    // Fallback terakhir: unduh otomatis kalau popup juga diblokir
+    const downloadFallback = () => {
+      const savedName = isSingle
+        ? downloadSingleOutletPDF(suratJalanList)
+        : downloadCombinedPDF(suratJalanList);
+      toast({
+        title: "Dialog cetak terblokir browser",
+        description: `File "${savedName}" diunduh otomatis. Buka file lalu cetak (Ctrl+P).`,
+        variant: "destructive",
+      });
+    };
+
+    // Cetak via iframe tersembunyi (cara paling andal di Chrome/Edge/Firefox)
+    const iframe = document.createElement("iframe");
+    iframe.src = previewUrl;
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    iframe.style.opacity = "0";
+    document.body.appendChild(iframe);
+
+    let done = false;
+    const triggerPrint = () => {
+      if (done) return;
+      done = true;
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+        toast({
+          title: "Dialog cetak dibuka",
+          description: `Total ${totalPages} halaman A4 siap dicetak.`,
+        });
+      } catch (e) {
+        console.error("Iframe print error:", e);
+        // Browser yang tidak boleh mencetak PDF via iframe (mis. Safari)
+        if (!openInNewTab()) downloadFallback();
+      }
+    };
+
+    iframe.onload = triggerPrint;
+
+    // Beberapa viewer PDF tidak menaikkan event "load" — pakai timer cadangan
+    window.setTimeout(triggerPrint, 2500);
+
+    // Jangan langsung dihapus supaya dialog print tidak ikut tertutup
+    window.setTimeout(() => {
+      iframe.remove();
+    }, 120000);
   };
 
   return (
